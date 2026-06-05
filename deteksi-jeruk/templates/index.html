@@ -1,0 +1,222 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deteksi Kualitas Jeruk</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --success: #22c55e;
+      --warn: #f97316;
+      --danger: #ef4444;
+      --accent: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top, rgba(248, 113, 33, .18), transparent 28%),
+                  linear-gradient(180deg, #071018 0%, #0d1117 100%);
+      min-height: 100vh;
+    }
+    main { max-width: 1120px; margin: 0 auto; padding: 28px 24px; }
+    header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+    header h1 { margin: 0; font-size: clamp(2rem, 2.5vw, 2.8rem); }
+    header p { margin: 0; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 24px; box-shadow: 0 24px 52px rgba(0,0,0,.18); }
+    .card h2, .card h3 { margin-top: 0; }
+    .upload-area { display: flex; flex-direction: column; gap: 16px; }
+    .upload-area input[type=file] { padding: 14px 12px; border-radius: 14px; border: 1px solid var(--border); background: rgba(255,255,255,.04); color: var(--text); }
+    .upload-area button { border: none; border-radius: 14px; background: linear-gradient(135deg, #f97316, #f59e0b); color: #111827; font-size: 1rem; font-weight: 700; padding: 14px 18px; cursor: pointer; }
+    .result-body { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+    .result-card { padding: 22px; border-radius: 20px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.02); }
+    .result-card p { margin: 0; line-height: 1.65; }
+    .status-badge { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; font-weight: 700; letter-spacing: .02em; }
+    .status-bagus { background: rgba(34,197,94,.12); color: var(--success); }
+    .status-sedang { background: rgba(249,115,22,.12); color: var(--warn); }
+    .status-buruk { background: rgba(239,68,68,.12); color: var(--danger); }
+    .preview { border-radius: 20px; overflow: hidden; border: 1px solid var(--border); background: #09101a; }
+    .preview img { width: 100%; display: block; }
+    .badge-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin-top: 18px; }
+    .badge { border-radius: 16px; border: 1px solid rgba(255,255,255,.08); padding: 16px; background: rgba(255,255,255,.03); }
+    .badge strong { display: block; margin-bottom: 8px; color: var(--text); }
+    .badge span { color: var(--muted); }
+    .list { padding-left: 18px; }
+    .list li { margin-bottom: 10px; line-height: 1.7; }
+    .note { color: var(--muted); font-size: .95rem; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .result-body { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Deteksi Kualitas Jeruk</h1>
+        <p>Unggah gambar jeruk untuk analisis warna dan tekstur menggunakan KNN.</p>
+      </div>
+      <div class="status-badge status-sedang">Metode: HSV + GLCM + KNN</div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Unggah Gambar</h2>
+        <div class="upload-area">
+          <form method="post" enctype="multipart/form-data">
+            <input type="file" name="gambar" accept="image/*" required />
+            <div style="display:flex;gap:10px;align-items:center;margin-top:8px;">
+              <label style="color:var(--muted);">k:</label>
+              <select name="k" style="padding:8px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text);">
+                <option value="1" {% if selected_k == 1 %}selected{% endif %}>1</option>
+                <option value="2" {% if selected_k == 2 %}selected{% endif %}>2</option>
+                <option value="3" {% if selected_k == 3 %}selected{% endif %}>3</option>
+                <option value="4" {% if selected_k == 4 %}selected{% endif %}>4</option>
+                <option value="5" {% if selected_k != 1 and selected_k != 2 and selected_k != 3 and selected_k != 4 %}selected{% endif %}>5</option>
+              </select>
+              <label style="color:var(--muted);display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" name="shape_only" {% if selected_mode == 'shape' %}checked{% endif %} /> Gunakan hanya fitur bentuk
+              </label>
+            </div>
+            <button type="submit">Upload dan Analisis</button>
+          </form>
+          <p class="note">File akan disimpan sementara di folder <code>static/uploads</code> sebelum dianalisis.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Ringkasan Model</h2>
+        <div class="badge-grid">
+          <div class="badge">
+            <strong>Kelas</strong>
+            <span>baik, sedang, buruk</span>
+          </div>
+          <div class="badge">
+            <strong>Ekstraksi Fitur</strong>
+            <span>RGB + GLCM</span>
+          </div>
+          <div class="badge">
+            <strong>Mask Warna</strong>
+            <span>Oranye / Hijau / Kuning</span>
+          </div>
+          <div class="badge">
+            <strong>Klasifikator</strong>
+            <span>KNN (k=5)</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card result-card">
+      <h2>Hasil Deteksi</h2>
+
+      {% if hasil %}
+      <div class="result-body">
+        <div>
+          <div class="status-badge status-{{ hasil }}">{{ hasil | upper }}</div>
+          <p><strong>Confidence:</strong> {% if confidence is not none %}{{ confidence | round(1) }}%{% else %}N/A{% endif %}</p>
+          <p>{{ deskripsi }}</p>
+          {% if eval_current %}
+          <div class="badge-grid" style="margin-top:16px;">
+            <div class="badge"><strong>K terpilih</strong><span>{{ selected_k }}</span></div>
+            <div class="badge"><strong>Mode fitur</strong><span>{% if selected_mode == 'shape' %}Shape Only{% else %}RGB + GLCM{% endif %}</span></div>
+            <div class="badge"><strong>Akurasi rata-rata</strong><span>{{ (eval_current.overall * 100) | round(1) }}%</span></div>
+          </div>
+          {% endif %}
+          <div class="badge-grid">
+            <div class="badge"><strong>Algoritme</strong><span>HSV → Masking → GLCM → KNN</span></div>
+            <div class="badge"><strong>Upload</strong><span>{{ image.split('/')[-1] }}</span></div>
+          </div>
+        </div>
+        <div class="preview">
+          <img src="{{ image }}" alt="Hasil Upload" />
+        </div>
+      </div>
+      {% else %}
+      <p>Belum ada hasil. Silakan upload gambar jeruk untuk melihat klasifikasi kualitas.</p>
+      {% endif %}
+    </section>
+
+    <section class="card" style="margin-top:18px;">
+      <h2>Hasil Evaluasi (10 ulangan per k)</h2>
+      <p class="note">Tabel menunjukkan akurasi rata-rata (overall dan per kelas) untuk k = 1..5. Mode <strong>Both</strong> = RGB+GLCM, <strong>Shape</strong> = luas & circularity.</p>
+
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;">
+        <div style="flex:1;min-width:260px;" class="badge-grid">
+          <div class="badge" style="grid-column:1/-1;">
+            <strong>Mode: RGB + GLCM</strong>
+            {% if eval_both %}
+            <table style="width:100%;margin-top:8px;border-collapse:collapse;color:var(--text);">
+              <tr><th style="text-align:left;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">k</th><th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">Overall</th><th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">Baik</th><th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">Sedang</th><th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">Buruk</th></tr>
+              {% for k,vals in eval_both.items()|sort %}
+              <tr {% if selected_k == k and selected_mode != 'shape' %}style="background:rgba(96,165,250,.08);"{% endif %}>
+                <td style="padding:6px;border-bottom:1px solid rgba(255,255,255,.03);">{{ k }}</td>
+                <td style="padding:6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.03);">{{ (vals.overall * 100) | round(1) }}%</td>
+                <td style="padding:6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.03);">{{ (vals.per_class.baik * 100) | round(1) }}%</td>
+                <td style="padding:6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.03);">{{ (vals.per_class.sedang * 100) | round(1) }}%</td>
+                <td style="padding:6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.03);">{{ (vals.per_class.buruk * 100) | round(1) }}%</td>
+              </tr>
+              {% endfor %}
+            </table>
+            {% else %}
+            <p class="note">Tidak ada data evaluasi untuk mode ini.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:260px;" class="badge-grid">
+          <div class="badge" style="grid-column:1/-1;">
+            <strong>Mode: Shape Only</strong>
+            {% if eval_shape %}
+            <table style="width:100%;margin-top:8px;border-collapse:collapse;color:var(--text);">
+              <tr><th style="text-align:left;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">k</th><th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">Overall</th><th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">Baik</th><th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">Sedang</th><th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.06);">Buruk</th></tr>
+              {% for k,vals in eval_shape.items()|sort %}
+              <tr {% if selected_k == k and selected_mode == 'shape' %}style="background:rgba(96,165,250,.08);"{% endif %}>
+                <td style="padding:6px;border-bottom:1px solid rgba(255,255,255,.03);">{{ k }}</td>
+                <td style="padding:6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.03);">{{ (vals.overall * 100) | round(1) }}%</td>
+                <td style="padding:6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.03);">{{ (vals.per_class.baik * 100) | round(1) }}%</td>
+                <td style="padding:6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.03);">{{ (vals.per_class.sedang * 100) | round(1) }}%</td>
+                <td style="padding:6px;text-align:right;border-bottom:1px solid rgba(255,255,255,.03);">{{ (vals.per_class.buruk * 100) | round(1) }}%</td>
+              </tr>
+              {% endfor %}
+            </table>
+            {% else %}
+            <p class="note">Tidak ada data evaluasi untuk mode ini.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid" style="margin-top: 24px;">
+      <section class="card">
+        <h3>Parameter Metode</h3>
+        <ul class="list">
+          <li>Rentang HSV Oranye: [5, 80, 80] - [25, 255, 255]</li>
+          <li>Rentang HSV Hijau: [30, 50, 50] - [90, 255, 255]</li>
+          <li>Rentang HSV Kuning: [20, 80, 80] - [35, 255, 255]</li>
+          <li>Resize citra sebelum ekstraksi: 400 x 300</li>
+          <li>KNN dengan <strong>k=5</strong> tetangga terdekat</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h3>Alur Analisis</h3>
+        <ul class="list">
+          <li>1. Baca gambar dan ubah ke format HSV.</li>
+          <li>2. Buat mask warna oranye/hijau/kuning untuk mendeteksi area jeruk.</li>
+          <li>3. Lakukan Gaussian blur dan threshold pada mask.</li>
+          <li>4. Ekstrak fitur RGB dari area termasking.</li>
+          <li>5. Ekstrak tekstur GLCM dari gambar grayscale.</li>
+          <li>6. Gunakan KNN untuk memprediksi kelas kualitas jeruk.</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
